@@ -1,0 +1,34 @@
+---
+title: "README"
+author: "Justin Peabody"
+date: "2026-05-27"
+output: html_document
+---
+
+Welcome to the repository hosting the code for my summer 2026 Air Quality research! This research was conducted under the Loyola University Undergraduate Summer Research Experience (USRE). I was mentored by Dr. Mena Whalen in the Department of Mathematics and Statistics. 
+
+The project connected me to a SQL database used by a university air quality research lab called the CLEAR lab, which employs students and professors to analyze data from Chicago-based air quality sensors created by the companies PurpleAir and AirGradient, install new sensors, and support public education and outreach on  the relevance of PM2.5 (particulate matter measuring less than 2.5 microns in diameter) to public health. 
+
+This 4-week-long research experience was designed to familiarize me with the SQL database, introductory SQL querying, and programmatic procedures used by the lab to update the database and connect the SQL server to RStudio. The only two files in this repository are this README and AQ_project_codes. 
+
+At a high level, the research was conducted in this sequence:
+
+Week 1: 
+
+* reading previous academic publications by university professors, which used PurpleAir and AirGradient sensor data to explore relationships between outdoor wildfire smoke levels and indoor PM2.5, utilized statistical and machine learning models incorporating particlate matter concentrations, wind speed, temperature, relative and specific humidity, solar flux, and other meteorological variables to optimize placement of future sensors. This familiarized me with the ways sensor data has been used in previous research.
+
+* learning basic syntax and keywords used in SQL database querying, such as SELECT, WHERE, aggregate functions, etc.
+
+* Connection to the SQL database was delayed by one week due to technical difficulties involving database access permissions. The latter half of Week 1 and the former half of Week 2 involved much troubleshooting with the IT department and Dr. Whalen.
+
+Week 2: 
+
+* Successfully configuring the connection between the SQL database and RStudio. 
+
+* Learning the R workflow for pulling data from the PurpleAir database into R and appending data to the SQL server, then applying this workflow to update the SQL database with over 5 months of recent sensor data. 
+
+
+
+
+
+
