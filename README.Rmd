@@ -7,7 +7,9 @@ output: html_document
 
 Welcome to the repository hosting the code for my summer 2026 Air Quality research! This research was conducted under the Loyola University Undergraduate Summer Research Experience (USRE). I was mentored by Dr. Mena Whalen in the Department of Mathematics and Statistics. 
 
-The project connected me to a SQL database used by a university air quality research lab called the CLEAR lab, which employs students and professors to analyze data from Chicago-based air quality sensors created by the companies PurpleAir and AirGradient, install new sensors, and support public education and outreach on  the relevance of PM2.5 (particulate matter measuring less than 2.5 microns in diameter) to public health. 
+The project connected me to a SQL database used by a university air quality research lab called the CLEAR lab, which employs students and professors to analyze data from Chicago-based air quality sensors created by the company PurpleAir, install new sensors, and support public education and outreach on  the relevance of PM2.5 (particulate matter measuring less than 2.5 microns in diameter) to public health. 
+
+The database consists of three tables: air_history, which contains readings of PM2.5 concentrations, temperature, pressure, relative humidity, and WiFi connection strength of PurpleAir sensors; and two metadata tables: sensor and sensor_information, which contain each sensor's name, date of creation, date previously online, whether the sensor is indoor or outdoor, its latitude and longitude, and whether or not its data is accessible to the public.
 
 This 4-week-long research experience was designed to familiarize me with the SQL database, introductory SQL querying, and programmatic procedures used by the lab to update the database and connect the SQL server to RStudio. The only two files in this repository are this README and AQ_project_codes. 
 
@@ -26,6 +28,8 @@ Week 2:
 * Successfully configuring the connection between the SQL database and RStudio. 
 
 * Learning the R workflow for pulling data from the PurpleAir database into R and appending data to the SQL server, then applying this workflow to update the SQL database with over 5 months of recent sensor data. 
+
+*Using the CASE WHEN, IF, ELSE, and ALTER TABLE keywords to append a new column of data to the sensor_information table based on the date when the sensor last transmitted data to the server.
 
 
 
