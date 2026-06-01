@@ -2922,12 +2922,12 @@ I needed to pull from the API in order to completely update it).
     most_recent_date
 
     ##   Most_recent_date
-    ## 1       2026-05-29
+    ## 1       2026-06-01
 
     most_recent_timestamp
 
     ##   Most_recent_time_stamp
-    ## 1    2026-05-29 15:22:20
+    ## 1    2026-06-01 16:25:44
 
 When I originally ran the above code on May 27th, the most recent date
 in the SQL database was December 3, 2025, and the most recent timestamp
@@ -2999,3 +2999,175 @@ was 23:59 (11:59 PM). Therefore, I needed to pull data from 12/4/25 to
     #Rerunning the most recent date query to ensure the update was successful (which it was, since the result was 05/27/26 instead of 12/04/25)
 
     new_most_recent_date<-dbGetQuery(con, "SELECT MAX(CAST(time_stamp as date)) AS Most_recent_date FROM air_history")
+
+    # Appending a flag column to the data in the database (Inactive=last_seen before May 1, 2026; Active=last_seen on or after May 1, 2026)
+
+    all_metadata<-dbGetQuery(con, "SELECT * FROM sensor_infomation")
+
+    #I can't actually rerun any of the following code from scratch because they represent operations on the database that have already been done, so all the code related to updating the metadata table is set to eval=FALSE.
+
+    for (i in all_metadata$sensor_index) {
+
+      #query <- "
+      #UPDATE sensor_information
+      #SET sensor_activity_status =
+        #CASE
+          #WHEN CAST(last_seen AS date) >= '2026-05-01'
+            #THEN 'Active'
+          #ELSE 'Inactive'
+        #END
+      #WHERE sensor_index = ?
+      #"
+
+      #dbExecute(con, query, params = list(i))
+    #}
+
+The resulting data had a lot of duplicate sensor indices, so I removed
+the duplicates from the database using the following code (again, I
+can’t actually run the code again since the changes have already been
+made to the database):
+
+    duplicate_sensors <- dbGetQuery(con, 
+    "SELECT
+        sensor_index,
+        COUNT(*) AS n
+    FROM sensor_information
+    GROUP BY sensor_index
+    HAVING COUNT(*) > 1")
+
+    dbExecute(con, "
+    WITH duplicates AS (
+        SELECT *,
+               ROW_NUMBER() OVER (
+                   PARTITION BY sensor_index
+                   ORDER BY sensor_index) AS rn
+        FROM sensor_information)
+    DELETE FROM duplicates
+    WHERE rn > 1")
+
+Noticing that the updated metadata table contained NA values for the
+model, name, hardware, and location\_type fields, I then used the
+getPurpleAirsensors() function in the PurpleAirAPI package to retrieve
+updated sensor metadata. When I specified all the fields of data in the
+metadata table (including the new flag column I made), the function
+failed in the following way.
+
+    fields=c("date_created", "last_seen", "name", "location_type", "model", "hardware", "latitude", "longitude", "sensor_activity_status")
+    getPurpleairSensors(apiReadKey = api_key, fields=fields)
+
+This motivated me to do something I had never done before: examine and
+try to debug the source code of the function.
+
+    f<-edit(getPurpleairSensors)
+
+This opened a panel within R containing the source code, which was the
+following:
+
+    function (apiReadKey = NULL, fields = c("latitude", "longitude", 
+        "date_created", "last_seen")) 
+    {
+        if (is.null("apiReadKey")) {
+            stop(paste("apiReadKey not defined!"))
+        }
+        required_params <- c("apiReadKey")
+        for (param in required_params) {
+            if (is.null(get(param))) {
+                stop(paste(param, "not defined!"))
+            }
+        }
+        validate_api_key(apiReadKey)
+        api_endpoint <- paste0("https://api.purpleair.com/v1/sensors?fields=", 
+            paste(fields, collapse = "%2C"))
+        result <- httr::GET(api_endpoint, config = httr::add_headers(`X-API-Key` = apiReadKey))
+        if (httr::http_error(result)) {
+            error_content <- httr::content(result, as = "text", encoding = "UTF-8")
+            error_details <- jsonlite::fromJSON(error_content)
+            error_message <- paste(httr::status_code(result), error_details$error, 
+                error_details$description)
+            stop(error_message)
+        }
+        raw <- httr::content(result, as = "text", encoding = "UTF-8")
+        response_list <- jsonlite::fromJSON(raw)
+        purpleair <- as.data.frame(response_list$data)
+        names(purpleair) <- response_list$fields
+        date_cols <- c("date_created", "last_seen")
+        for (col in date_cols) {
+            if (col %in% names(purpleair)) {
+                purpleair[[col]] <- as.Date(as.POSIXct(purpleair[[col]], 
+                    origin = "1970-01-01"))
+            }
+        }
+        return(purpleair)
+    }
+
+The first issue I noticed with this code is that only four of the fields
+are specified in the fields vector, indicating that this code might have
+been designed for an outdated version of the database. I thus added the
+other relevant fields into the fields vector, but that modification
+still yielded the same error message.
+
+After explaining my predicament to ChatGPT, it told me that the other
+issue resided in the for loop towards the end of the function.
+Specifically, the date\_created and last\_seen fields needed to be
+converted to numeric type before they could be transformed into POSIXct
+type. It also pointed out that apiReadKey was presented as a string
+towards the beginning of the function, not as a variable.
+
+After making these modifications and saving them to an alias called f,
+the source code looked like this:
+
+    f<-edit(getPurpleairSensors)
+    print(f)
+
+
+    function (apiReadKey = NULL, fields = c("date_created", "last_seen", "name", "location_type", "model", "hardware", "latitude", "longitude", "sensor_activity_status")) 
+    {
+        if (is.null(apiReadKey)) {
+            stop(paste("apiReadKey not defined!"))
+        }
+        required_params <- c(apiReadKey)
+        for (param in required_params) {
+            if (is.null(get(param))) {
+                stop(paste(param, "not defined!"))
+            }
+        }
+        validate_api_key(apiReadKey)
+        api_endpoint <- paste0("https://api.purpleair.com/v1/sensors?fields=", 
+            paste(fields, collapse = "%2C"))
+        result <- httr::GET(api_endpoint, config = httr::add_headers(`X-API-Key` = apiReadKey))
+        if (httr::http_error(result)) {
+            error_content <- httr::content(result, as = "text", encoding = "UTF-8")
+            error_details <- jsonlite::fromJSON(error_content)
+            error_message <- paste(httr::status_code(result), error_details$error, 
+                error_details$description)
+            stop(error_message)
+        }
+        raw <- httr::content(result, as = "text", encoding = "UTF-8")
+        response_list <- jsonlite::fromJSON(raw)
+        purpleair <- as.data.frame(response_list$data)
+        names(purpleair) <- response_list$fields
+        date_cols <- c("date_created", "last_seen")
+        for (col in date_cols) {
+            if (col %in% names(purpleair)) {
+                numeric_time<-as.numeric(purpleair[[col]])
+                purpleair[[col]] <- as.POSIXct(purpleair[[col]], 
+                    origin = "1970-01-01", tz="UTC")
+            }
+        }
+        return(purpleair)
+    }
+
+I then called the function f to pull updated sensor metadata and append
+it to the sensor\_infomation table in the SQL server. This successfully
+updated all the fields of the table, leaving no missing values.
+
+    fields=c("date_created", "last_seen", "name", "location_type", "model", "hardware", "latitude", "longitude", "sensor_activity_status")
+    api_key<-"F38F115A-78CA-11EE-A8AF-42010A80000A"
+    newdata<-f(apiReadKey = api_key, fields=fields)
+
+    dbWriteTable(
+      con,
+      name = "sensor_infomation",
+      value = newdata,
+      append = TRUE,
+      row.names = FALSE)
