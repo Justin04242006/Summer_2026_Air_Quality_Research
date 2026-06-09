@@ -31,6 +31,25 @@ Week 2:
 
 *Using the CASE WHEN, IF, ELSE, and ALTER TABLE keywords to append a new column of data to the sensor_information table based on the date when the sensor last transmitted data to the server.
 
+Week 3:
+
+* Using a DELETE query to clean sensor_infomation (the sensor metadata table) to only include sensors in the Chicago area and then remove duplicate sensors.
+
+* Creating a new table, called trigger_pulls, to store metadata on updates to the air_history table, including the number of rows inserted into air_history, a list of sensors with new historical data, the timestamp of the update, and a unique ID distinguishing the update.
+
+* Learning about ER diagrams, incuding entities, relationships, and attribute types, and how to create an ER diagram in order to visually depict the structure and information flow of a database. 
+
+* Creating a new ER diagram for the CLEAR lab database to include the new trigger_pulls table.
+
+* Writing an R script to update the database using the workflow derived from the new ER diagram.
+
+* Running a test-automation of the R script using the Terminal to update the database every night at midnight. 
+
+Week 4:
+
+* Presenting the progress made thus far, including background information on the CLEAR lab and PM2.5, changes made to the database structure, and the high-level workflow of the R script. 
+
+
 
 
 
