@@ -13,6 +13,14 @@ The database consists of three tables: air_history, which contains readings of P
 
 This 4-week-long research experience was designed to familiarize me with the SQL database, introductory SQL querying, and programmatic procedures used by the lab to update the database and connect the SQL server to RStudio. The only two files in this repository are this README and AQ_project_codes. 
 
+# Contents of this repository
+
+* README.Rmd: This README file
+
+* AQ_project_codes.md: A Markdown file containing all the R and RMySQL code used to query the database, download data from the API, and generate the R script to automatically update the database
+
+* Research_presentation.pptx: The Google Sldies presentation I delivered virtually to a cohort of Loyola student at the conclusion of the 4-week research program, which outlines the CLEAR lab, the Purpleair sensors installed in Chicago, updates to the database schema used by the lab, a high-level overview of my R script to automate database updates, and the lab's future research goals.
+
 At a high level, the research was conducted in this sequence:
 
 Week 1: 
@@ -49,13 +57,7 @@ Week 4:
 
 * Presenting the progress made thus far, including background information on the CLEAR lab and PM2.5, changes made to the database structure, and the high-level workflow of the R script. 
 
-# Contents of this repository
 
-* This README file
-
-* A Markdown file containing all the R and RMySQL code used to query the database, download data from the API, and generate the R script to automatically update the database
-
-* The Google Sldies presentation I delivered virtually to a cohort of Loyola student at the conclusion of the 4-week research program, which outlines the CLEAR lab, the Purpleair sensors installed in Chicago, updates to the database schema used by the lab, a high-level overview of my R script to automate database updates, and the lab's future research goals.
 
 
 
