@@ -49,7 +49,13 @@ Week 4:
 
 * Presenting the progress made thus far, including background information on the CLEAR lab and PM2.5, changes made to the database structure, and the high-level workflow of the R script. 
 
+# Contents of this repository
 
+* This README file
+
+* A Markdown file containing all the R and RMySQL code used to query the database, download data from the API, and generate the R script to automatically update the database
+
+* The Google Sldies presentation I delivered virtually to a cohort of Loyola student at the conclusion of the 4-week research program, which outlines the CLEAR lab, the Purpleair sensors installed in Chicago, updates to the database schema used by the lab, a high-level overview of my R script to automate database updates, and the lab's future research goals.
 
 
 
