@@ -323,7 +323,7 @@ updated all the fields of the table, leaving no missing values.
       append = TRUE,
       row.names = FALSE)
 
-\#Week 3: shrinking of data table and conceptualizing/designing a
+## Week 3: shrinking of data table and conceptualizing/designing a
 trigger to automatically pull the previous 24 hours of data for relevant
 sensors
 
@@ -688,3 +688,5 @@ This is what the script accomplishes at a high level:
 
     dbDisconnect(con)
     cat(format(Sys.time(), "%Y-%m-%d %H:%M:%S"), "- Script finished executing and disconnected cleanly.\n")
+    
+
