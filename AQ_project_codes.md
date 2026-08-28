@@ -686,5 +686,10 @@ This is what the script accomplishes at a high level:
 
     dbDisconnect(con)
     cat(format(Sys.time(), "%Y-%m-%d %H:%M:%S"), "- Script finished executing and disconnected cleanly.\n")
-    
+
+
+## After the completion of the USRE program: 
+(expansion of Loyola's air quality database to include Clarity and AirGradient sensor data (compling similar R scripts to update the Clarity and AirGradient tables within the database--like the PurpleAir script, these have not yet been automated but will be eventually
+
+
 
