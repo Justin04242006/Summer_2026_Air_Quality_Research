@@ -323,9 +323,7 @@ updated all the fields of the table, leaving no missing values.
       append = TRUE,
       row.names = FALSE)
 
-\#Week 3: shrinking of data table and conceptualizing/designing a
-trigger to automatically pull the previous 24 hours of data for relevant
-sensors
+# Week 3: shrinking of data table and conceptualizing/designing a script which, when run with a 24 hour trigger, will automatically pull the previous 24 hours of data for relevant sensors
 
 Dr. Whalen informed me that the server currently contains information
 for all PurpleAir sensors on Earth, and we are only interested in
@@ -689,7 +687,7 @@ This is what the script accomplishes at a high level:
     dbDisconnect(con)
     cat(format(Sys.time(), "%Y-%m-%d %H:%M:%S"), "- Script finished executing and disconnected cleanly.\n")
 
-## After the completion of the USRE program
+# After the completion of the USRE program
 
 Following the compiling of the R script to update thr PurpleAir sensor
 data tables and my subsequent presentation of the script’s conceptual
@@ -702,7 +700,7 @@ AirGradient sensor data
 tables within the database–like the PurpleAir script, these have not yet
 been automated but will be eventually
 
-# Downloading Clarity sensor data and adding it to database
+## Downloading Clarity sensor data and adding it to database
 
 This was the code I used to download historical data from the OpenAir
 Chicago API (the OpenAir project was a partnership between the Chicago
