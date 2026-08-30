@@ -505,7 +505,7 @@ represent all the historical data currently in air\_history.
     new_query<-dbGetQuery(con, "SELECT * FROM trigger_pulls")
     new_query
 
-After making a new ER diagram for the desired database structure and
+gAfter making a new ER diagram for the desired database structure and
 considering the high-level workflow of the script, I wrote the script
 (with some syntactical help from ChatGPT and conceptual help from my
 professor).
@@ -777,6 +777,10 @@ Here is one example, after downloading chunks 21 through 40:
     Chunks_21_thru_40$pm2_5concnumindividual_value<-as.numeric(Chunks_221_thru_240$pm2_5concnumindividual_value)
     Chunks_21_thru_40$pm2_5concmassindividual_raw<-as.numeric(Chunks_221_thru_240$pm2_5concmassindividual_raw)
 
+    sensor_last_seen_timestamps<-Chunks_21_thru_40%>%
+    group_by(sensor_name)%>%
+    summarize(last_seen=max(time))
+
 I reformatted the time variable in each data chunk because the API
 stored it as a character variable, while my empty SQL tables (which I
 initially created after downloading the historical data) were set up to
@@ -784,7 +788,8 @@ accept a POSIXct format. I realized I needed to do this after inspecting
 the data in the table and seeing all the timestamps as NA values.
 Similalry, I needed to convert all the variables that were supposed to
 be numeric into a numeric class because the API stored them as character
-values.
+values. As I created the chunks, I set up a last\_seen variable by
+aggregating the timestamps in the historical data table for each sensor.
 
 Once I had combined the data into 14 groups, I combined those into 3
 groups, then combined those 3 groups into one final dataset, like this:
@@ -828,23 +833,8 @@ the PurpleAir data tables, to house the Clarity historical data.
          no2concindividual_raw DECIMAL(10,2),
          no2concindividual_value DECIMAL(10,2))")
 
-I then uploaded the historical data to the historical data table.
-
-    dbWriteTable(conn      = con,
-                 name      = "Clarity_air_history",
-                 value     = All_Clarity_historical_data,
-                 append    = TRUE,         
-                 overwrite = FALSE,         
-                 row.names = FALSE)
-
-Owing to the very large size of this dataset, this command took a very
-long time to execute and eventually terminated in the middle of
-execution, crashing my RStudio session and forcing me to redownload the
-historical data and clear the Clarity\_air\_history table. After venting
-my strife to my troubleshooting colleague and psychiatrist, ChatGPT, it
-advised me to iteratively upload the data in batches of 10,000, like
-this (it even included an extra statement at the end to provide a
-real-time progress indicator):
+I then uploaded the historical data to the historical data table in
+bathes of 10,000 (to avoid memory issues on my computer):
 
     library(DBI)
 
@@ -1135,3 +1125,319 @@ Here is the working Clarity update script:
     cat(format(Sys.time(), "%Y-%m-%d %H:%M:%S"), "- Script finished executing and disconnected cleanly.\n")
 
 ## Downloading AirGradient sensor data and adding it to database
+
+This was the code I used to download historical data from the
+AirGradient API, after ascertaining the ID numbers of the 16 AirGradient
+sensors on the CLEAR lab’s AirGradient dashboard. I downloaded the data
+in chunks as I did with the Clarity data, except that I needed to
+delinate the chunks based on time instead of the number of observations
+(I downloaded 10 days’ worth of historical data per chunk).
+
+    library(httr)
+    library(jsonlite)
+    library(dplyr)
+    token <- token
+    location_ids <- c("190848", "190849", "190850", "190851", "190852", "190853", "190854", "190855", "190856", "190857", "190858", "190859", "190860", "190861", "190862", "190863", "190864")
+
+    from_time = format(Sys.time() - 864000, "%Y-%m-%dT%H:%M:%SZ", tz = "UTC")
+    to_time   = format(Sys.time(), "%Y-%m-%dT%H:%M:%SZ", tz = "UTC")
+
+    all_data <- list()
+
+    for (id in location_ids){
+      url <- paste0("https://api.airgradient.com/public/api/v1/locations/", id, "/measures/past")
+      
+      response <- GET(
+        url,
+        query = list(
+          token = token,
+          from = from_time,
+          to   = to_time)
+      )
+      
+      if (status_code(response) != 200) {
+        warning("Request failed for sensor ", id, " with status ", status_code(response))
+        next
+      }
+      
+      json_text <- content(response, as = "text", encoding = "UTF-8")
+      df <- fromJSON(json_text, flatten = TRUE)
+      
+      df$location_id <- id
+      
+      all_data[[id]] <- df
+    }
+
+    Airgradient_chunk_1 <- bind_rows(all_data) 
+
+    str(Airgradient_chunk_1)
+    head(Airgradient_chunk_1)
+
+I downloaded the most recent 10 days of data first, then went backwards
+in time until the code yielded no new observations. This occured after I
+had downloaded 10 chunks of data, equivalent to 100 days. This ended up
+totaling 399,634 rows, much smaller than the Clarity historical data.
+
+Combining the AirGradient data into one dataframe, then chopping that
+dataframe into histroical data and sensor metadata:
+
+    Existing_AirGradient_data<-bind_rows(Airgradient_chunk_1, Airgradient_chunk_2, Airgradient_chunk_3, Airgradient_chunk_4, Airgradient_chunk_5, Airgradient_chunk_6, Airgradient_chunk_7,Airgradient_chunk_8, Airgradient_chunk_9, Airgradient_chunk_10)
+
+    AirGradient_historical_data<-Existing_AirGradient_data%>%
+    select(locationId, locationName, timestamp, pm01, pm01_corrected, pm02, pm02_corrected, pm10, pm10_corrected, atmp, atmp_corrected, rhum, rhum_corrected, rco2, rco2_corrected, tvoc)
+
+    Airgradient_sensor_information<-Existing_AirGradient_data%>%
+    select(locationId, locationName, serialno, model, firmwareVersion)%>%
+    distinct(locationId, .keep_all = TRUE)
+
+Before I could insert the sensor metadata table into the database, I
+needed to create a last\_seen column in the data. As aforementioned,
+last\_seen does not inherently exist on the API, but the professor and i
+desired a last\_seen variable to mirror the schema of the PurpleAir data
+tables as closely as possible.
+
+    last_seen_values<-Airgradient_air_history%>%
+    group_by(locationId)%>%
+    summarize(last_seen=max(timestamp))
+
+    Airgradient_sensor_information<-Airgradient_sensor_information%>%
+    full_join(last_seen_values)
+
+Creating historical data and sensor metadata SQL tables and inserting
+the corresponding dataframes into them:
+
+    dbExecute(con, "
+      CREATE TABLE Airgradient_air_history (
+          locationID INT, 
+          locationName VARCHAR(MAX) NOT NULL,
+          timestamp DATETIME NOT NULL,
+          PRIMARY KEY (locationID, timestamp),
+          pm01 DECIMAL (10,2),
+          pm01_corrected DECIMAL (10, 2),
+          pm02 DECIMAL (10, 2),
+          pm02_corrected DECIMAL (10, 2),
+          pm10 DECIMAL (10, 2),
+          pm10_corrected DECIMAL (10, 2),
+          atmp DECIMAL (10, 2),
+          atmp_corrected DECIMAL (10, 2),
+          rhum INT,
+          rhum_corrected INT,
+          rco2 INT,
+          rco2_corrected INT,
+          tvoc DECIMAL (10, 2))")
+
+    dbExecute(con, "CREATE TABLE Airgradient_sensor_information(
+         locationID INT PRIMARY KEY,
+         locationName VARCHAR(MAX),
+         serialno VARCHAR(MAX),
+         model VARCHAR(MAX),
+         firmwareVersion VARCHAR(MAX),
+         last_seen VARCHAR(MAX))")
+
+
+    dbWriteTable(
+      conn      = con,
+      name      = "Airgradient_air_history",
+      value     = Airgradient_air_history_clean,
+      append    = TRUE,         
+      overwrite = FALSE,         
+      row.names = FALSE
+    )
+
+
+    dbWriteTable(
+      conn      = con,
+      name      = "Airgradient_sensor_information",
+      value     = Airgradient_sensor_information,
+      append    = TRUE,         
+      overwrite = FALSE,         
+      row.names = FALSE
+    )
+
+Creating a trigger\_pulls table (unlike the sensor\_information and
+air\_history tables, the trigger\_pulls table included the exact same
+variables across all three sensor companies):
+
+    dbExecute(con, "
+      CREATE TABLE Airgradient_trigger_pulls (
+          pull_id INT IDENTITY (1,1) PRIMARY KEY, 
+          pull_timestamp DATETIME NOT NULL, 
+          rows_inserted INT NOT NULL,
+          sensors_processed VARCHAR(MAX) NOT NULL)")
+
+Synthesizing the above pieces of code into a 24 hour update script for
+the three AirGradient data tables (the script possessed the exact same
+structure and workflow as the Clarity update script):
+
+    library(tidyverse)
+    library(readxl)
+    library(httr)
+    library(jsonlite)
+    library(lubridate)
+    library(PurpleAirAPI)
+    library(DBI)
+    library(odbc)
+    library(PurpleAir)
+
+    # 1. Connect to server
+
+    cat(format(Sys.time(), "%Y-%m-%d %H:%M:%S"), "- Script began executing.\n")
+
+    con = dbConnect(
+      odbc(),
+      Driver = "/opt/homebrew/lib/libmsodbcsql.18.dylib",
+      Server = "resdbsprdhs02.adms.luc.edu",
+      Database = "clearlab_purpleair",
+      UID = Sys.getenv("DB_USERNAME"),
+      PWD = Sys.getenv("DB_PASSWORD"),
+      Encrypt = "yes",
+      TrustServerCertificate = "yes"
+    )
+
+    cat(
+      format(Sys.time(), "%Y-%m-%d %H:%M:%S"),
+      "- Connected to database\n"
+    )
+
+    ### 2. Fetch Database Active Sensors
+    Airgradient_active_sensors <- dbGetQuery(con, "SELECT locationID, last_seen FROM Airgradient_sensor_information WHERE sensor_activity_status= 'Active'")
+    sensoridsvec <- Airgradient_active_sensors$locationID
+    sensoridsvec
+    cat(
+      format(Sys.time(), "%Y-%m-%d %H:%M:%S"),
+      "- Retrieved active sensors\n"
+    )
+
+    ###3. Fetch Live API Timestamps
+    #As was the case with Clarity, I cannot do this step with AirGradient sensors because the last_seen variable does not natively exist in the AirGradient API like it does in the PurpleAir API.
+
+
+    ### 4. Fetch and Process Historical Data from the most recent time in the database until the current system time
+
+    #Wrap historical steps in an IF block to prevent errors if 0 sensors need updates
+
+    latest_time <- DBI::dbGetQuery(
+      con,
+      "SELECT MAX(timestamp) AS latest_time
+       FROM Airgradient_air_history"
+    )$latest_time
+
+    latest_time <- format(
+      as.POSIXct(latest_time, tz = "UTC") +1,
+      "%Y-%m-%dT%H:%M:%S"
+    )
+
+    current_time <- format(
+      Sys.time(),
+      "%Y-%m-%dT%H:%M:%S",
+      tz = "UTC"
+    )
+
+    all_data <- list()
+
+    for (i in sensoridsvec){
+      url <- paste0("https://api.airgradient.com/public/api/v1/locations/", i, "/measures/past")
+      
+      response <- GET(
+        url,
+        query = list(
+          token = Sys.getenv("LUC_CLEAR_AIRGRADIENT_API_KEY"),
+          from = latest_time,
+          to   = current_time)
+      )
+      
+      if (status_code(response) != 200) {
+        warning("Request failed for sensor ", i, " with status ", status_code(response))
+        next
+      }
+      
+      json_text <- content(response, as = "text", encoding = "UTF-8")
+      df <- fromJSON(json_text, flatten = TRUE)
+      
+      df$location_id <- i
+      
+      all_data[[i]] <- df
+    }
+
+    final_df <- bind_rows(all_data)
+
+    New_airgradient_historical_data<-final_df%>%
+    select(locationId, locationName, timestamp, pm01, pm01_corrected, pm02, pm02_corrected, pm10, pm10_corrected, atmp, atmp_corrected, rhum, rhum_corrected, rco2, rco2_corrected, tvoc)
+
+    New_airgradient_historical_data$timestamp <- as.POSIXct(
+      New_airgradient_historical_data$timestamp,
+      format = "%Y-%m-%dT%H:%M:%OS",
+      tz = "UTC")
+
+    dbWriteTable(
+      conn      = con,
+      name      = "Airgradient_air_history",
+      value     = New_airgradient_historical_data,
+      append    = TRUE,         
+      overwrite = FALSE,         
+      row.names = FALSE
+    )
+
+    sensors_pulled_log<-c()
+    for (i in sensoridsvec) {
+      sensors_pulled_log <- c(sensors_pulled_log, as.character(i)) 
+      sensor_list_string <- paste(sensors_pulled_log, collapse = ", ")}
+
+    #5. Updating sensor metadata with new last_seen timestamps based on the updated air_history table
+
+    Airgradient_sensor_information<-dbGetQuery(con, "SELECT * FROM Airgradient_sensor_information")
+    Airgradient_air_history<-dbGetQuery(con, "SELECT locationID, timestamp FROM Airgradient_air_history")
+
+    current_last_seen_times<-Airgradient_air_history%>%
+      group_by(locationID)%>%
+      summarize(most_recent_timestamp=max(timestamp))
+
+    for (i in Airgradient_sensor_information$locationID) {
+      query1 <- dbGetQuery(con, "SELECT last_seen FROM Airgradient_sensor_information WHERE locationID = ?", params = list(i)) #extracts the currently documented last_seen timestamp for each sensor and assigns it as db_last_seen
+      db_last_seen <- if(nrow(query1) > 0) query1$last_seen else NA
+      api_row <- current_last_seen_times %>% 
+        filter(locationID == i)%>%
+        select(most_recent_timestamp)
+      
+      if (nrow(api_row) > 0) {
+        api_last_seen <- api_row$most_recent_timestamp} #assigns the current last_seen times for each sensor based on the updated air_history table
+      
+      if (is.na(db_last_seen) || db_last_seen < api_last_seen) {
+        
+        position=which(Airgradient_sensor_information$locationID == i) 
+        j=current_last_seen_times$locationID[position]
+        
+        query2 <- "UPDATE Airgradient_sensor_information SET last_seen = ? WHERE locationID = ?"
+        
+        dbExecute(con, query2, params = list(as.character(api_last_seen), j))
+        
+      }
+    }
+
+    #6. Update trigger_pulls table 
+
+    trigger_log_df <- data.frame(
+      pull_timestamp    = format(Sys.time(), "%Y-%m-%d %H:%M:%S"),
+      rows_inserted     = as.integer(nrow(New_airgradient_historical_data)),
+      sensors_processed = sensor_list_string,
+      stringsAsFactors  = FALSE
+    )
+
+    dbWriteTable(conn=con, name='Airgradient_trigger_pulls', value=trigger_log_df, append=TRUE, row.names=FALSE)
+
+    cat(
+      format(Sys.time(), "%Y-%m-%d %H:%M:%S"),
+      "- Appended historical pull metadata to trigger_pulls table\n"
+    )
+
+    dbDisconnect(con)
+    cat(format(Sys.time(), "%Y-%m-%d %H:%M:%S"), "- Script finished executing and disconnected cleanly.\n")
+
+# Future goals
+
+As the summer ends and my junior year begins, the next steps include
+automating the update scripts I wrote for each sensor company and the
+creation of a single, integrated dashboard with all the PurpleAir,
+Clarity, and AirGradient sensors accessible by the CLEAR lab. Work done
+during my junior year with regards to these goals are addressed in a
+separate GitHub repository.
