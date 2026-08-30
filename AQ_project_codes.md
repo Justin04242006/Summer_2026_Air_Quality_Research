@@ -1,6 +1,10 @@
 This file contains all the R code I used to query and analyze data from
 the clearlab\_purpleair SQL database for the 4-week Summer 2026 USRE
-project titled “Understanding Air Quality Through Data.”
+project titled “Understanding Air Quality Through Data”, and it also
+includes R code I used to expand the database later in the summer, after
+completion of the project.
+
+# During the USRE program (5/18/26-6/12/26):
 
 ## Week 2: early queries, determining relevant dates per sensor, and adding activity status flag column
 
@@ -1130,4 +1134,4 @@ Here is the working Clarity update script:
     dbDisconnect(con)
     cat(format(Sys.time(), "%Y-%m-%d %H:%M:%S"), "- Script finished executing and disconnected cleanly.\n")
 
-# Downloading AirGradient sensor data and adding it to database
+## Downloading AirGradient sensor data and adding it to database
