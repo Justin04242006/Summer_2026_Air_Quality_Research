@@ -323,7 +323,9 @@ updated all the fields of the table, leaving no missing values.
       append = TRUE,
       row.names = FALSE)
 
-## Week 3: shrinking of data table and conceptualizing/designing a trigger to automatically pull the previous 24 hours of data for relevant sensors
+\#Week 3: shrinking of data table and conceptualizing/designing a
+trigger to automatically pull the previous 24 hours of data for relevant
+sensors
 
 Dr. Whalen informed me that the server currently contains information
 for all PurpleAir sensors on Earth, and we are only interested in
@@ -687,9 +689,447 @@ This is what the script accomplishes at a high level:
     dbDisconnect(con)
     cat(format(Sys.time(), "%Y-%m-%d %H:%M:%S"), "- Script finished executing and disconnected cleanly.\n")
 
+## After the completion of the USRE program
 
-## After the completion of the USRE program: 
-(expansion of Loyola's air quality database to include Clarity and AirGradient sensor data (compling similar R scripts to update the Clarity and AirGradient tables within the database--like the PurpleAir script, these have not yet been automated but will be eventually
+Following the compiling of the R script to update thr PurpleAir sensor
+data tables and my subsequent presentation of the script’s conceptual
+framework, I proceeded to do the following:
+
+(expansion of Loyola’s air quality database to include Clarity and
+AirGradient sensor data
+
+(compiling similar R scripts to update the Clarity and AirGradient
+tables within the database–like the PurpleAir script, these have not yet
+been automated but will be eventually
+
+# Downloading Clarity sensor data and adding it to database
+
+This was the code I used to download historical data from the OpenAir
+Chicago API (the OpenAir project was a partnership between the Chicago
+Department of Public Health, Uniersity of Illinois Chicago’s School of
+Public Health, ComEd, and many other organizations to install 277
+Clarity Node S air quality sensors in a gridlike arrangement throughout
+the city during a six week period in 2025).
+
+At the time I downloaded all the Clarity historical data, nearly 12
+million historical observations existed on the API, far too many for my
+personal computer to ingest at once without my RStudio software crashing
+due to memory issues. I downloaded the data in chunks of 50,000 rows to
+avoid this problem.
+
+    limit<- 50000
+
+    chunk1 <- fromJSON(
+      paste0(
+        "https://data.cityofchicago.org/resource/xfya-dxtq.json?",
+        "$limit=", limit,
+        "&$offset=0"
+      )
+    )
+
+    chunk2 <- fromJSON(
+      paste0(
+        "https://data.cityofchicago.org/resource/xfya-dxtq.json?",
+        "$limit=", limit,
+        "&$offset=50000"
+      )
+    )
+
+    chunk3 <- fromJSON(
+      paste0(
+        "https://data.cityofchicago.org/resource/xfya-dxtq.json?",
+        "$limit=", limit,
+        "&$offset=100000"
+      )
+    )
+
+I manually continued executing this approach until I had downloaded all
+the API data, which ended up consisting of 240 chunks: 239 of which
+contained a full 50,000 observations, and the 240th containing a few
+hundred less.
+
+As I downloaded the chunks, I combined groups of them into larger
+datasets using the bind\_rows function (another very helpful tool I
+learned from ChatGPT) and then removed the constituent datasets of each
+group from my environment. This helped regulate my memory usage and
+speed up the downloading process. This was how I combined the data
+chunks:
+
+Here is one example, after downloading chunks 21 through 40:
+
+    Chunks_21_thru_40<-bind_rows(chunk21, chunk22, chunk23, chunk24, chunk25, chunk26, chunk27, chunk28, chunk29, chunk30, chunk31, chunk32, chunk33, chunk34, chunk35, chunk36, chunk37, chunk38, chunk39, chunk40)
+    rm(chunk21, chunk22, chunk23, chunk24, chunk25, chunk26, chunk27, chunk28, chunk29, chunk30, chunk31, chunk32, chunk33, chunk34, chunk35, chunk36, chunk37, chunk38, chunk39, chunk40)
+
+    Chunks_21_thru_40$time<-as.POSIXct(
+      Chunks_21_thru_40$time,
+      format = "%Y-%m-%dT%H:%M:%OS",
+      tz = "UTC"
+    )
+
+    Chunks_21_thru_40$no2concindividual_raw<-as.numeric(Chunks_221_thru_240$no2concindividual_raw)
+    Chunks_21_thru_40$no2concindividual_value<-as.numeric(Chunks_221_thru_240$no2concindividual_value)
+    Chunks_21_thru_40$relhumidinternalindividual<-as.numeric(Chunks_221_thru_240$relhumidinternalindividual)
+    Chunks_21_thru_40$temperatureinternalindividual<-as.numeric(Chunks_221_thru_240$temperatureinternalindividual)
+    Chunks_21_thru_40$pm2_5concnumindividual_raw<-as.numeric(Chunks_221_thru_240$pm2_5concnumindividual_raw)
+    Chunks_21_thru_40$pm2_5concmassindividual_value<-as.numeric(Chunks_221_thru_240$pm2_5concmassindividual_value)
+    Chunks_21_thru_40$pm2_5concnumindividual_value<-as.numeric(Chunks_221_thru_240$pm2_5concnumindividual_value)
+    Chunks_21_thru_40$pm2_5concmassindividual_raw<-as.numeric(Chunks_221_thru_240$pm2_5concmassindividual_raw)
+
+I reformatted the time variable in each data chunk because the API
+stored it as a character variable, while my empty SQL tables (which I
+initially created after downloading the historical data) were set up to
+accept a POSIXct format. I realized I needed to do this after inspecting
+the data in the table and seeing all the timestamps as NA values.
+Similalry, I needed to convert all the variables that were supposed to
+be numeric into a numeric class because the API stored them as character
+values.
+
+Once I had combined the data into 14 groups, I combined those into 3
+groups, then combined those 3 groups into one final dataset, like this:
+
+    First_80_chunks<-bind_rows(Chunks_1_thru_5, Chunks_6_thru_10, Chunks_11_thru_20, Chunks_21_thru_40, Chunks_41_thru_60, Chunks_61_thru_80)
+    rm(Chunks_1_thru_5, Chunks_6_thru_10, Chunks_11_thru_20, Chunks_21_thru_40, Chunks_41_thru_60, Chunks_61_thru_80)
+
+    Second_80_chunks<-bind_rows(Chunks_81_thru_100, Chunks_101_thru_120, Chunks_121_thru_140, Chunks_141_thru_160)
+    rm(Chunks_81_thru_100, Chunks_101_thru_120, Chunks_121_thru_140, Chunks_141_thru_160)
+
+    Last_80_chunks<-bind_rows(Chunks_161_thru_180, Chunks_181_thru_200, Chunks_201_thru_220, Chunks_221_thru_240)
+    rm(Chunks_161_thru_180, Chunks_181_thru_200, Chunks_201_thru_220, Chunks_221_thru_240)
+
+    All_Clarity_historical_data<-bind_rows(First_80_chunks, Second_80_chunks, Last_80_chunks)
+
+Now, the Clarity data from the API contained 32 total variables,
+including historical variables and metadata variables. This means that I
+obtained the historical data and the metadata from the same original
+dataset, like this:
+
+    All_Clarity_historical_data <- All_Clarity_historical_data%>%
+    select(datasourceid, sensor_name, time, record_id, relhumidinternalindividual, pm2_5concmassindividual_raw, pm2_5concmassindividual_value, pm2_5concnumindividual_raw, pm2_5concnumindividual_value, no2concindividual_raw, no2concindividual_value, temperatureinternalindividual)
 
 
+    Clarity_sensor_information<-All_Clarity_historical_data%>%
+    select(datasourceid, sensor_name, latitude, longitude)
 
+Then I created a SQL table, on the same server that already contained
+the PurpleAir data tables, to house the Clarity historical data.
+
+    dbExecute(con, "CREATE TABLE Clarity_air_history (
+         datasourceid VARCHAR(MAX),
+         sensor_name VARCHAR(MAX),
+         time DATETIME,
+         record_id VARCHAR(MAX),
+         relhumidinternalindividual DECIMAL(10,2),
+         pm2_5concmassindividual_raw DECIMAL(10,2),
+         pm2_5concmassindividual_value DECIMAL(10,2),
+         pm2_5concnumindividual_raw DECIMAL(10,2),
+         pm2_5concnumindividual_value DECIMAL(10,2),
+         no2concindividual_raw DECIMAL(10,2),
+         no2concindividual_value DECIMAL(10,2))")
+
+I then uploaded the historical data to the historical data table.
+
+    dbWriteTable(conn      = con,
+                 name      = "Clarity_air_history",
+                 value     = All_Clarity_historical_data,
+                 append    = TRUE,         
+                 overwrite = FALSE,         
+                 row.names = FALSE)
+
+Owing to the very large size of this dataset, this command took a very
+long time to execute and eventually terminated in the middle of
+execution, crashing my RStudio session and forcing me to redownload the
+historical data and clear the Clarity\_air\_history table. After venting
+my strife to my troubleshooting colleague and psychiatrist, ChatGPT, it
+advised me to iteratively upload the data in batches of 10,000, like
+this (it even included an extra statement at the end to provide a
+real-time progress indicator):
+
+    library(DBI)
+
+    batch_size <- 10000
+    n <- nrow(All_Clarity_historical_data_8_14_26)
+
+    for (i in seq(1, n, by = batch_size)) {
+      
+      end <- min(i + batch_size - 1, n)
+      
+      dbWriteTable(
+        conn = con,
+        name = "Clarity_air_history",
+        value = All_Clarity_historical_data_8_14_26[i:end, ],
+        append = TRUE,
+        row.names = FALSE
+      )
+      
+      cat("Uploaded", end, "of", n, "rows (",
+          round(100 * end / n, 1), "%)\n")
+    }
+
+With the historical Clarity data successfully in the database, I
+proceeded to create a table to house the Clarity sensor metadata and add
+the metadata to the table.
+
+    dbExecute(con, "CREATE TABLE Clarity_sensor_information (
+         datasourceid VARCHAR(MAX),
+         sensor_name VARCHAR(MAX),
+         latitude DECIMAL (10, 2),
+         longitude DECIMAL (10, 2),
+         last_seen DATETIME NOT NULL)")
+
+
+    dbWriteTable(conn      = con,
+                 name      = "Clarity_sensor_information",
+                 value     = Clarity_sensor_information,
+                 append    = TRUE,         
+                 overwrite = FALSE,         
+                 row.names = FALSE)
+
+My final task with the Clarity sensor data, before writing an update
+script, was to set up a trigger pulls table. Like the PurpleAir trigger
+pulls table, this table records the following each time the database is
+updated:
+
+- a unique integer to unquely identify the update
+- the timestamp at which the historical data was updated
+- the number of rows inserted into the historical data table
+- a vectorized list of all the sensors with new historical data
+
+<!-- -->
+
+    dbExecute(con, "
+      CREATE TABLE  Clarity_trigger_pulls (
+          pull_id INT IDENTITY (1,1) PRIMARY KEY, 
+          pull_timestamp DATETIME NOT NULL, 
+          rows_inserted INT NOT NULL,
+          sensors_processed VARCHAR(MAX) NOT NULL)")
+
+Mirroring the general structure of the PurpleAir update script, I
+retrofitted and modified that script to tailor it to the Clarity data
+tables. The general workflow is similar, except for two key differences
+that I needed to take into account:
+
+1.  unlike the PurpleAir script, I could not retrive the live API
+    timestamps for each sensor because the last\_seen variable does not
+    natively exist in the Clarity API like it does in the PurpleAir API.
+
+2.  as a consequence of 1), I needed the script to download new
+    historical data before updating the metadata. Recall that in the
+    PurpleAir script, I downloaded the metadata first, extracted the
+    last\_seen value for each sensor, and used that to determine whether
+    that sensor needed updated historical data.
+
+Here is the working Clarity update script:
+
+    library(tidyverse)
+    library(readxl)
+    library(httr)
+    library(jsonlite)
+    library(lubridate)
+    library(PurpleAirAPI)
+    library(DBI)
+    library(odbc)
+    library(PurpleAir)
+
+
+    # 1. Connect to server
+
+    cat(format(Sys.time(), "%Y-%m-%d %H:%M:%S"), "- Script began executing.\n")
+
+    con = dbConnect(
+      odbc(),
+      Driver = "/opt/homebrew/lib/libmsodbcsql.18.dylib",
+      Server = "resdbsprdhs02.adms.luc.edu",
+      Database = "clearlab_purpleair",
+      UID = Sys.getenv("DB_USERNAME"),
+      PWD = Sys.getenv("DB_PASSWORD"),
+      Encrypt = "yes",
+      TrustServerCertificate = "yes"
+    )
+
+    cat(
+      format(Sys.time(), "%Y-%m-%d %H:%M:%S"),
+      "- Connected to database\n"
+    )
+
+
+    ### 2. Fetch Database Active Sensors
+    Clarity_active_sensors <- dbGetQuery(con, "SELECT datasourceid, last_seen FROM Clarity_sensor_information WHERE sensor_activity_status= 'Active'")
+    sensoridsvec <- Clarity_active_sensors$datasourceid
+
+    cat(
+      format(Sys.time(), "%Y-%m-%d %H:%M:%S"),
+      "- Retrieved active sensors\n"
+    )
+
+
+    ### 3.Fetch Live API Timestamps
+    #I cannot do this step with Clarity sensors because the last_seen variable does not natively exist in the Clarity API like it does in the PurpleAir API.
+
+
+    ### 4. Fetch and Process Historical Data from the most recent time in the database until the current system time
+
+    #Wrap historical steps in an IF block to prevent errors if 0 sensors need updates
+
+
+    if (length(sensoridsvec) > 0) { 
+      
+      latest_time <- DBI::dbGetQuery(
+        con,
+       "SELECT MAX(time) AS latest_time
+       FROM Clarity_air_history"
+      )$latest_time
+      
+      latest_time <- format(
+        as.POSIXct(latest_time, tz = "UTC"),
+        "%Y-%m-%dT%H:%M:%S"
+      )
+      
+      current_time <- format(
+        Sys.time(),
+        "%Y-%m-%dT%H:%M:%S",
+        tz = "UTC"
+      )
+      
+      sensor_filter <- paste0(
+        "datasourceid IN ('",
+        paste(sensoridsvec, collapse = "', '"),
+        "')"
+      )
+      
+      where <- URLencode(
+        paste0(
+          "time > '", latest_time,
+          "' AND time <= '", current_time,
+          "' AND ", 
+          sensor_filter
+        ),
+        reserved = TRUE
+      )
+      
+      limit <- 50000
+      offset <- 0
+      all_data <- list()
+      
+      repeat {
+        
+        url <- paste0(
+          "https://data.cityofchicago.org/resource/xfya-dxtq.json?",
+          "$where=", where,
+          "&$order=time%20ASC",
+          "&$limit=", limit,
+          "&$offset=", as.integer(offset)
+        )
+        
+        response <- GET(url, timeout(3600))
+        
+        txt <- content(response, as = "text", encoding = "UTF-8")
+        
+        if (status_code(response) != 200) {
+          cat(txt)
+          break
+        }
+        
+        chunk <- jsonlite::fromJSON(txt, flatten = TRUE)
+        
+        if (nrow(chunk) == 0)
+          break
+        
+        all_data[[length(all_data) + 1]] <- chunk
+        
+        message("Downloaded ", offset + nrow(chunk), " rows")
+        
+        if (nrow(chunk) < limit)
+          break
+        
+        offset <- offset + limit
+      }
+      
+      cat(
+        format(Sys.time(), "%Y-%m-%d %H:%M:%S"),
+        "- Downloaded new historical data\n"
+      )
+      
+      New_historical_data <- do.call(rbind, all_data)
+      status_code(response)
+      txt <- content(response, as = "text", encoding = "UTF-8")
+      cat(txt)
+      
+      New_historical_data$time <- as.POSIXct(
+        New_historical_data$time,
+        format = "%Y-%m-%dT%H:%M:%OS",
+        tz = "UTC"
+      ) }
+
+    New_historical_data<-New_historical_data%>%
+    select(c(datasourceid, sensor_name, time, record_id, relhumidinternalindividual, no2concindividual_raw, no2concindividual_value, pm2_5concmassindividual_raw, pm2_5concmassindividual_value, pm2_5concnumindividual_raw, pm2_5concnumindividual_value, temperatureinternalindividual))
+
+    dbWriteTable(
+    conn      = con,
+    name      = "Clarity_air_history",
+    value     = New_historical_data,
+    append    = TRUE,         
+    overwrite = FALSE,         
+    row.names = FALSE
+    )
+
+    sensors_pulled_log<-c()
+    for (i in sensoridsvec) {
+      sensors_pulled_log <- c(sensors_pulled_log, as.character(i)) 
+      sensor_list_string <- paste(sensors_pulled_log, collapse = ", ")}
+
+
+    #5. Updating sensor metadata with new last_seen timestamps based on the updated air_history table
+
+    clarity_sensor_information<-dbGetQuery(con, "SELECT * FROM Clarity_sensor_information")
+    clarity_air_history<-dbGetQuery(con, "SELECT datasourceid, time FROM Clarity_air_history")
+    max(clarity_air_history$time)
+
+    current_last_seen_times<-clarity_air_history%>%
+    group_by(datasourceid)%>%
+    summarize(most_recent_timestamp=max(time))
+      
+      for (i in clarity_sensor_information$datasourceid) {
+        query1 <- dbGetQuery(con, "SELECT last_seen FROM Clarity_sensor_information WHERE datasourceid = ?", params = list(i)) #extracts the currently documented last_seen timestamp for each sensor and assigns it as db_last_seen
+        db_last_seen <- if(nrow(query1) > 0) query1$last_seen else NA
+        
+        api_row <- current_last_seen_times %>% 
+          filter(datasourceid == i)%>%
+          select(most_recent_timestamp)
+        
+        if (nrow(api_row) > 0) {
+          api_last_seen <- api_row$most_recent_timestamp} #assigns the current last_seen times for each sensor based on the updated air_history table
+          
+          if (is.na(db_last_seen) || db_last_seen < api_last_seen) {
+            
+            position=which(clarity_sensor_information$datasourceid == i) 
+            j=current_last_seen_times$datasourceid[position]
+            
+            query2 <- "UPDATE Clarity_sensor_information SET last_seen = ? WHERE datasourceid = ?"
+            
+            dbExecute(con, query2, params = list(as.character(api_last_seen), j))
+            
+
+          }
+      }
+
+
+    #6. Update trigger_pulls table 
+
+    trigger_log_df <- data.frame(
+      pull_timestamp    = format(Sys.time(), "%Y-%m-%d %H:%M:%S"),
+      rows_inserted     = as.integer(nrow(New_historical_data)),
+      sensors_processed = sensor_list_string,
+      stringsAsFactors  = FALSE
+    )
+
+    dbWriteTable(conn=con, name='Clarity_trigger_pulls', value=trigger_log_df, append=TRUE, row.names=FALSE)
+
+    cat(
+      format(Sys.time(), "%Y-%m-%d %H:%M:%S"),
+      "- Appended historical pull metadata to trigger_pulls table\n"
+    )
+
+    dbDisconnect(con)
+    cat(format(Sys.time(), "%Y-%m-%d %H:%M:%S"), "- Script finished executing and disconnected cleanly.\n")
+
+# Downloading AirGradient sensor data and adding it to database
