@@ -327,7 +327,7 @@ updated all the fields of the table, leaving no missing values.
       append = TRUE,
       row.names = FALSE)
 
-# Week 3: shrinking of data table and conceptualizing/designing a script which, when run with a 24 hour trigger, will automatically pull the previous 24 hours of data for relevant sensors
+## Week 3: shrinking of data table and conceptualizing/designing a script which, when run with a 24 hour trigger, will automatically pull the previous 24 hours of data for relevant sensors
 
 Dr. Whalen informed me that the server currently contains information
 for all PurpleAir sensors on Earth, and we are only interested in
