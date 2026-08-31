@@ -833,15 +833,16 @@ the PurpleAir data tables, to house the Clarity historical data.
          no2concindividual_raw DECIMAL(10,2),
          no2concindividual_value DECIMAL(10,2))")
 
-I then uploaded the historical data to the historical data table in
-bathes of 10,000 (to avoid memory issues on my computer):
+With assistance from AI, I uploaded the historical data to the
+historical data table in batches of 10,000 (to avoid memory issues on my
+computer):
 
     library(DBI)
 
     batch_size <- 10000
-    n <- nrow(All_Clarity_historical_data_8_14_26)
+    n <- nrow(Clarity_historical_data)
 
-    for (i in seq(1, n, by = batch_size)) {
+    for (i in seq(1, n, by = batch_size)) { 
       
       end <- min(i + batch_size - 1, n)
       
